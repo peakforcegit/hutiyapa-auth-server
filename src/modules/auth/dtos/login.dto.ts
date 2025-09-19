@@ -1,1 +1,14 @@
-export class LoginDto { email!: string; password!: string; }
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+
+export class LoginDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+
+  @IsOptional()
+  @IsString()
+  deviceInfo?: string;
+}

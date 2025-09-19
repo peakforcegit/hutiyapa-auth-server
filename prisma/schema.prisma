@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -12,4 +6,133 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model addresses {
+  id           Int         @id @default(autoincrement())
+  type         AddressType @default(HOME)
+  isDefault    Boolean     @default(false)
+  firstName    String
+  lastName     String
+  phoneNumber  String?
+  company      String?
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  postalCode   String
+  country      String      @default("India")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime
+  userId       Int
+  users        users       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isDefault], map: "addresses_default_idx")
+  @@index([city, state], map: "addresses_location_idx")
+  @@index([type])
+  @@index([userId], map: "addresses_user_id_idx")
+}
+
+model audit_logs {
+  id          String      @id
+  userId      Int?
+  action      AuditAction
+  description String?
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  users       users?      @relation(fields: [userId], references: [id])
+
+  @@index([action])
+  @@index([createdAt], map: "audit_logs_created_at_idx")
+  @@index([ipAddress], map: "audit_logs_ip_idx")
+  @@index([userId], map: "audit_logs_user_id_idx")
+}
+
+model refresh_tokens {
+  id         String   @id
+  token      String   @unique
+  userId     Int
+  deviceInfo String?
+  ipAddress  String?
+  isRevoked  Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  lastUsedAt DateTime @default(now())
+  users      users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt], map: "refresh_tokens_expires_idx")
+  @@index([isRevoked], map: "refresh_tokens_revoked_idx")
+  @@index([token])
+  @@index([userId], map: "refresh_tokens_user_id_idx")
+}
+
+model users {
+  id                     Int              @id @default(autoincrement())
+  email                  String           @unique
+  firstName              String
+  lastName               String
+  password               String?
+  phoneNumber            String?
+  dateOfBirth            DateTime?
+  gender                 Gender?
+  isActive               Boolean          @default(true)
+  isEmailVerified        Boolean          @default(false)
+  isPhoneVerified        Boolean          @default(false)
+  lastLoginAt            DateTime?
+  loginCount             Int              @default(0)
+  failedLoginAttempts    Int              @default(0)
+  lastFailedLoginAt      DateTime?
+  accountLockedUntil     DateTime?
+  lastPasswordChange     DateTime         @default(now())
+  resetPasswordToken     String?
+  resetPasswordExpires   DateTime?
+  emailVerificationToken String?
+  phoneVerificationToken String?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime
+  google_id              String?          @unique @db.VarChar
+  oauth_provider         String?          @db.VarChar
+  is_oauth_user          Boolean?         @default(false)
+  oauth_profile_picture  String?          @db.VarChar
+  addresses              addresses[]
+  audit_logs             audit_logs[]
+  refresh_tokens         refresh_tokens[]
+
+  @@index([isActive], map: "users_active_idx")
+  @@index([createdAt], map: "users_created_at_idx")
+  @@index([email, isActive], map: "users_email_active_idx")
+  @@index([isEmailVerified], map: "users_email_verified_idx")
+  @@index([lastLoginAt], map: "users_last_login_idx")
+  @@index([accountLockedUntil], map: "users_locked_until_idx")
+  @@index([resetPasswordToken], map: "users_reset_token_idx")
+}
+
+enum AddressType {
+  HOME
+  WORK
+  OTHER
+}
+
+enum AuditAction {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_CHANGE
+  PASSWORD_RESET
+  ACCOUNT_LOCKED
+  ACCOUNT_UNLOCKED
+  EMAIL_VERIFIED
+  TOKEN_REFRESH
+  PROFILE_UPDATE
+  GOOGLE_OAUTH_LOGIN
+  GOOGLE_OAUTH_SIGNUP
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
 }

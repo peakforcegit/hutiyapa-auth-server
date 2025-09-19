@@ -7,7 +7,7 @@ import { ValidationPipe as GlobalValidationPipe } from './common/pipes/validatio
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const enableHelmet = (process.env.ENABLE_HELMET ?? 'true') === 'true';
-  const corsOrigin = process.env.CORS_ORIGIN ?? '*';
+  const corsOrigin = process.env.CORS_ORIGIN ?? process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3001';
   const cookieSecret = process.env.COOKIE_SECRET ?? 'change-me';
   if (enableHelmet) {
     app.use(helmet());

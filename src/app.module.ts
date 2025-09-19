@@ -6,6 +6,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HealthController } from './modules/health/health.controller';
 import { HealthModule } from './modules/health/health.module';
+import { PrismaModule } from './infra/prisma/prisma.module';
+import { UsersModule } from './modules/users/users.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { OauthModule } from './modules/oauth/oauth.module';
 
 @Module({
   imports: [
@@ -15,7 +19,11 @@ import { HealthModule } from './modules/health/health.module';
       validate,
       expandVariables: true,
     }),
+    PrismaModule,
     HealthModule,
+    UsersModule,
+    AuthModule,
+    OauthModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

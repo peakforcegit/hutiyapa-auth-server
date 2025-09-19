@@ -1,3 +1,15 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable } from '@nestjs/common';
+import { UsersRepository } from './users.repository';
+
 @Injectable()
-export class UsersService {}
+export class UsersService {
+  constructor(private readonly usersRepo: UsersRepository) {}
+
+  findByEmail(email: string) {
+    return this.usersRepo.findByEmail(email);
+  }
+
+  createLocal(params: { email: string; passwordHash: string; name?: string | null }) {
+    return this.usersRepo.createLocalUser(params);
+  }
+}
