@@ -1,12 +1,10 @@
-node_modules/
-dist/
-.env
-.env.*
+node_modules
+dist
 .nyc_output
-coverage/
+coverage
 .DS_Store
-.idea/
-.vscode/
+.idea
+.vscode
 
 # Logs
 logs
@@ -17,3 +15,5 @@ yarn-error.log*
 
 # OS
 Thumbs.db
+
+/generated/prisma
