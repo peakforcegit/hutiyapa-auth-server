@@ -38,8 +38,8 @@ export class AuthService {
   private async issueTokens(userId: number, email: string, ipAddress?: string, deviceInfo?: string) {
     const accessPayload = { sub: userId, email };
     const refreshPayload = { sub: userId, email, typ: 'refresh' };
-    const accessToken = await this.jwt.signAsync(accessPayload, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: process.env.JWT_ACCESS_TTL || '15m' });
-    const refreshToken = await this.jwt.signAsync(refreshPayload, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: process.env.JWT_REFRESH_TTL || '30d' });
+    const accessToken = await this.jwt.signAsync(accessPayload, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '15m' });
+    const refreshToken = await this.jwt.signAsync(refreshPayload, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: '30d' });
     const decoded: any = this.jwt.decode(refreshToken);
     const expiresAt = new Date((decoded as any).exp * 1000);
     await this.prisma.refresh_tokens.create({
@@ -51,5 +51,66 @@ export class AuthService {
   async logout(refreshToken: string) {
     await this.prisma.refresh_tokens.updateMany({ where: { token: refreshToken }, data: { isRevoked: true, updatedAt: new Date() } });
     return { success: true };
+  }
+
+  async getUserProfile(userId: number) {
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        oauth_profile_picture: true,
+        is_oauth_user: true,
+        createdAt: true,
+        lastLoginAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return user;
+  }
+
+  async refreshTokens(refreshToken: string) {
+    try {
+      // Verify refresh token
+      const payload = await this.jwt.verifyAsync(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
+
+      // Check if token exists in database and is not revoked
+      const storedToken = await this.prisma.refresh_tokens.findFirst({
+        where: {
+          token: refreshToken,
+          isRevoked: false,
+          expiresAt: { gt: new Date() },
+        },
+      });
+
+      if (!storedToken) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Update last used time
+      await this.prisma.refresh_tokens.update({
+        where: { id: storedToken.id },
+        data: { lastUsedAt: new Date() },
+      });
+
+      // Generate new access token
+      const accessPayload = { sub: payload.sub, email: payload.email };
+      const accessToken = await this.jwt.signAsync(accessPayload, {
+        secret: process.env.JWT_ACCESS_SECRET,
+        expiresIn: '15m',
+      });
+
+      return { accessToken };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
   }
 }

@@ -1,8 +1,9 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
 import { ForgotPasswordDto, ResetPasswordDto } from './dtos/forgot.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { Response, Request } from 'express';
 
 @Controller('auth')
@@ -45,5 +46,59 @@ export class AuthController {
   async reset(@Body() _dto: ResetPasswordDto) {
     // Implement reset using resetPasswordToken and resetPasswordExpires
     return { success: true };
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@Req() req: Request) {
+    const user = (req as any).user;
+    
+    // Get user details from database
+    const userDetails = await this.auth.getUserProfile(user.userId);
+    
+    return {
+      success: true,
+      user: {
+        id: userDetails.id,
+        email: userDetails.email,
+        firstName: userDetails.firstName,
+        lastName: userDetails.lastName,
+        avatar: userDetails.oauth_profile_picture,
+        isOAuthUser: userDetails.is_oauth_user,
+      },
+    };
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = req.cookies?.refresh_token;
+    
+    if (!refreshToken) {
+      res.clearCookie('access_token');
+      res.clearCookie('refresh_token');
+      return res.status(401).json({ success: false, message: 'No refresh token' });
+    }
+
+    try {
+      const { accessToken } = await this.auth.refreshTokens(refreshToken);
+      
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: isProduction,
+        maxAge: 15 * 60 * 1000, // 15 minutes
+        path: '/'
+      });
+
+      // Return access token so SPA can set Authorization header if cookies are blocked
+      return { success: true, accessToken };
+    } catch (error) {
+      res.clearCookie('access_token');
+      res.clearCookie('refresh_token');
+      return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+    }
   }
 }

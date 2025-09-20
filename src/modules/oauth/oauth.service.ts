@@ -57,8 +57,8 @@ export class OauthService {
     }
 
     // Issue tokens (reuse existing flow)
-    const access = await this.jwt.signAsync({ sub: user.id, email: user.email }, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: process.env.JWT_ACCESS_TTL || '15m' });
-    const refresh = await this.jwt.signAsync({ sub: user.id, email: user.email, typ: 'refresh' }, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: process.env.JWT_REFRESH_TTL || '30d' });
+    const access = await this.jwt.signAsync({ sub: user.id, email: user.email }, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '15m' });
+    const refresh = await this.jwt.signAsync({ sub: user.id, email: user.email, typ: 'refresh' }, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: '30d' });
     const decoded: any = this.jwt.decode(refresh);
     const expiresAt = new Date((decoded as any).exp * 1000);
 
@@ -75,7 +75,7 @@ export class OauthService {
       },
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3001';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
     return { accessToken: access, refreshToken: refresh, redirectUrl: frontendUrl };
   }
 }
