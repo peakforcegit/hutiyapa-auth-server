@@ -9,14 +9,14 @@ export class UsersRepository {
     return this.prisma.users.findUnique({ where: { email } });
   }
 
-  createLocalUser(params: { email: string; passwordHash: string; name?: string | null }) {
-    const { email, passwordHash, name } = params;
+  createLocalUser(params: { email: string; passwordHash: string; firstName?: string; lastName?: string }) {
+    const { email, passwordHash, firstName, lastName } = params;
     return this.prisma.users.create({
       data: {
         email,
         password: passwordHash,
-        firstName: name ?? '',
-        lastName: '',
+        firstName: firstName ?? '',
+        lastName: lastName ?? '',
         updatedAt: new Date(),
       },
     });

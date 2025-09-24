@@ -5,6 +5,7 @@ import { LoginDto } from './dtos/login.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -15,15 +16,31 @@ export class AuthService {
   ) {}
 
   async signup(payload: SignupDto) {
-    const existing = await this.users.findByEmail(payload.email);
-    if (existing) throw new BadRequestException('Email already in use');
-    const passwordHash = await bcrypt.hash(payload.password, 10);
-    const user = await this.users.createLocal({
-      email: payload.email,
-      passwordHash,
-      name: [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim() || null,
-    });
-    return this.issueTokens(user.id, user.email);
+    try {
+      console.log('Signup payload received:', payload);
+      
+      const existing = await this.users.findByEmail(payload.email);
+      if (existing) throw new BadRequestException('Email already in use');
+      
+      const passwordHash = await bcrypt.hash(payload.password, 10);
+      console.log('Password hashed successfully');
+      
+      const user = await this.users.createLocal({
+        email: payload.email,
+        passwordHash,
+        firstName: payload.firstName || '',
+        lastName: payload.lastName || '',
+      });
+      console.log('User created successfully:', user.id);
+      
+      const tokens = await this.issueTokens(user.id, user.email);
+      console.log('Tokens issued successfully');
+      
+      return tokens;
+    } catch (error) {
+      console.error('Signup error:', error);
+      throw error;
+    }
   }
 
   async login(payload: LoginDto, ipAddress?: string, deviceInfo?: string) {
@@ -42,8 +59,9 @@ export class AuthService {
     const refreshToken = await this.jwt.signAsync(refreshPayload, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: '30d' });
     const decoded: any = this.jwt.decode(refreshToken);
     const expiresAt = new Date((decoded as any).exp * 1000);
+    
     await this.prisma.refresh_tokens.create({
-      data: { id: crypto.randomUUID(), token: refreshToken, userId, deviceInfo, ipAddress, expiresAt, updatedAt: new Date(), lastUsedAt: new Date() },
+      data: { id: randomUUID(), token: refreshToken, userId, deviceInfo, ipAddress, expiresAt, updatedAt: new Date(), lastUsedAt: new Date() },
     });
     return { accessToken, refreshToken };
   }

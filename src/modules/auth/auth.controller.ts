@@ -12,9 +12,15 @@ export class AuthController {
 
   @Post('signup')
   async signup(@Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
-    const { accessToken, refreshToken } = await this.auth.signup(dto);
-    res.cookie('refresh_token', refreshToken, { httpOnly: true, sameSite: 'lax', secure: false, maxAge: 30 * 24 * 3600 * 1000 });
-    return { accessToken };
+    try {
+      console.log('Controller received signup DTO:', dto);
+      const { accessToken, refreshToken } = await this.auth.signup(dto);
+      res.cookie('refresh_token', refreshToken, { httpOnly: true, sameSite: 'lax', secure: false, maxAge: 30 * 24 * 3600 * 1000 });
+      return { accessToken };
+    } catch (error) {
+      console.error('Signup controller error:', error);
+      throw error;
+    }
   }
 
   @HttpCode(HttpStatus.OK)

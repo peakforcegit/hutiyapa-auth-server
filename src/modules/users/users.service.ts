@@ -9,7 +9,7 @@ export class UsersService {
     return this.usersRepo.findByEmail(email);
   }
 
-  createLocal(params: { email: string; passwordHash: string; name?: string | null }) {
+  createLocal(params: { email: string; passwordHash: string; firstName?: string; lastName?: string }) {
     return this.usersRepo.createLocalUser(params);
   }
 }
