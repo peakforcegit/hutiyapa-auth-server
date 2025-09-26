@@ -1,32 +1,38 @@
-import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { EmailService } from '../email/email.service';
+import { TokensService } from '../tokens/tokens.service';
 import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
 import { ResetPasswordDto } from './dtos/reset-password.dto';
 import * as bcrypt from 'bcrypt';
-import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { randomUUID, randomBytes, createHash } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
+import type { AppConfig } from '../../config/configuration';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly users: UsersService,
-    private readonly jwt: JwtService,
+    private readonly tokens: TokensService,
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly config: ConfigService<AppConfig>,
   ) {}
 
-  async signup(payload: SignupDto) {
+  async signup(payload: SignupDto, ipAddress?: string, deviceInfo?: string) {
     try {
-      console.log('Signup payload received:', payload);
+      this.logger.log('Signup attempt for email:', payload.email);
       
       const existing = await this.users.findByEmail(payload.email);
-      if (existing) throw new BadRequestException('Email already in use');
+      if (existing) {
+        throw new BadRequestException('Email already in use');
+      }
       
-      const passwordHash = await bcrypt.hash(payload.password, 10);
-      console.log('Password hashed successfully');
+      const passwordHash = await bcrypt.hash(payload.password, 12); // Increased cost for better security
       
       const user = await this.users.createLocal({
         email: payload.email,
@@ -34,50 +40,92 @@ export class AuthService {
         firstName: payload.firstName || '',
         lastName: payload.lastName || '',
       });
-      console.log('User created successfully:', user.id);
       
-      const tokens = await this.issueTokens(user.id, user.email);
-      console.log('Tokens issued successfully');
+      this.logger.log(`User created successfully: ${user.id}`);
+      
+      // Generate secure token pair
+      const tokens = await this.tokens.generateTokenPair({
+        userId: user.id,
+        email: user.email,
+        deviceInfo: deviceInfo || 'Web Browser',
+        ipAddress,
+      });
       
       // Send welcome email (don't await to avoid blocking signup)
       this.emailService.sendWelcomeEmail(user.email, user.firstName || 'User').catch(err => {
-        console.log('Welcome email failed, but signup succeeded:', err.message);
+        this.logger.warn('Welcome email failed, but signup succeeded:', err.message);
       });
       
-      return tokens;
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      };
     } catch (error) {
-      console.error('Signup error:', error);
+      this.logger.error('Signup error:', error);
       throw error;
     }
   }
 
   async login(payload: LoginDto, ipAddress?: string, deviceInfo?: string) {
     const user = await this.users.findByEmail(payload.email);
-    if (!user || !user.password) throw new UnauthorizedException('Invalid credentials');
-    const ok = await bcrypt.compare(payload.password, user.password);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
-    await this.prisma.users.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), loginCount: { increment: 1 } } });
-    return this.issueTokens(user.id, user.email, ipAddress, deviceInfo);
-  }
-
-  private async issueTokens(userId: number, email: string, ipAddress?: string, deviceInfo?: string) {
-    const accessPayload = { sub: userId, email };
-    const refreshPayload = { sub: userId, email, typ: 'refresh' };
-    const accessToken = await this.jwt.signAsync(accessPayload, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '15m' });
-    const refreshToken = await this.jwt.signAsync(refreshPayload, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: '30d' });
-    const decoded: any = this.jwt.decode(refreshToken);
-    const expiresAt = new Date((decoded as any).exp * 1000);
+    if (!user || !user.password) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
     
-    await this.prisma.refresh_tokens.create({
-      data: { id: randomUUID(), token: refreshToken, userId, deviceInfo, ipAddress, expiresAt, updatedAt: new Date(), lastUsedAt: new Date() },
+    const isValidPassword = await bcrypt.compare(payload.password, user.password);
+    if (!isValidPassword) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    
+    // Update login statistics
+    await this.prisma.users.update({
+      where: { id: user.id },
+      data: {
+        lastLoginAt: new Date(),
+        loginCount: { increment: 1 },
+        updatedAt: new Date(),
+      },
     });
-    return { accessToken, refreshToken };
+    
+    // Generate secure token pair
+    const tokens = await this.tokens.generateTokenPair({
+      userId: user.id,
+      email: user.email,
+      deviceInfo: deviceInfo || 'Web Browser',
+      ipAddress,
+    });
+    
+    this.logger.log(`User ${user.id} logged in from ${ipAddress}`);
+    
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
   async logout(refreshToken: string) {
-    await this.prisma.refresh_tokens.updateMany({ where: { token: refreshToken }, data: { isRevoked: true, updatedAt: new Date() } });
-    return { success: true };
+    try {
+      // Find the token and revoke it
+      const tokenRecord = await this.prisma.refresh_tokens.findFirst({
+        where: { 
+          token: refreshToken,
+          isRevoked: false 
+        },
+      });
+
+      if (tokenRecord) {
+        await this.tokens.revokeToken(tokenRecord.id);
+        this.logger.log(`User ${tokenRecord.userId} logged out`);
+      }
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Logout error:', error);
+      return { success: true }; // Don't reveal internal errors
+    }
   }
+
+
 
   async getUserProfile(userId: number) {
     const user = await this.prisma.users.findUnique({
@@ -101,41 +149,21 @@ export class AuthService {
     return user;
   }
 
-  async refreshTokens(refreshToken: string) {
+  async refreshTokens(refreshToken: string, ipAddress?: string, deviceInfo?: string) {
     try {
-      // Verify refresh token
-      const payload = await this.jwt.verifyAsync(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET,
-      });
+      // Use TokensService for secure token rotation
+      const newTokens = await this.tokens.rotateRefreshToken(
+        refreshToken,
+        ipAddress,
+        deviceInfo,
+      );
 
-      // Check if token exists in database and is not revoked
-      const storedToken = await this.prisma.refresh_tokens.findFirst({
-        where: {
-          token: refreshToken,
-          isRevoked: false,
-          expiresAt: { gt: new Date() },
-        },
-      });
-
-      if (!storedToken) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-
-      // Update last used time
-      await this.prisma.refresh_tokens.update({
-        where: { id: storedToken.id },
-        data: { lastUsedAt: new Date() },
-      });
-
-      // Generate new access token
-      const accessPayload = { sub: payload.sub, email: payload.email };
-      const accessToken = await this.jwt.signAsync(accessPayload, {
-        secret: process.env.JWT_ACCESS_SECRET,
-        expiresIn: '15m',
-      });
-
-      return { accessToken };
+      return {
+        accessToken: newTokens.accessToken,
+        refreshToken: newTokens.refreshToken,
+      };
     } catch (error) {
+      this.logger.warn(`Token refresh failed from ${ipAddress}:`, error.message);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
@@ -184,7 +212,7 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('Invalid or expired reset token');
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, 12); // Increased cost
 
     await this.prisma.users.update({
       where: { id: user.id },
@@ -197,6 +225,42 @@ export class AuthService {
       },
     });
 
+    // Revoke all existing sessions for security
+    await this.tokens.revokeAllUserTokens(user.id);
+    
+    this.logger.log(`Password reset completed for user ${user.id}`);
+
+    return { success: true };
+  }
+
+  /**
+   * Get user sessions for session management
+   */
+  async getUserSessions(userId: number) {
+    return this.tokens.getUserSessions(userId);
+  }
+
+  /**
+   * Revoke a specific user session
+   */
+  async revokeUserSession(userId: number, sessionId: string) {
+    // Verify the session belongs to the user for security
+    const sessions = await this.tokens.getUserSessions(userId);
+    const sessionExists = sessions.find(s => s.id === sessionId);
+    
+    if (!sessionExists) {
+      throw new NotFoundException('Session not found');
+    }
+
+    await this.tokens.revokeToken(sessionId);
+    return { success: true };
+  }
+
+  /**
+   * Revoke all user sessions
+   */
+  async revokeAllUserSessions(userId: number) {
+    await this.tokens.revokeAllUserTokens(userId);
     return { success: true };
   }
 }

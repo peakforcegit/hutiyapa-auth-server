@@ -36,31 +36,33 @@ export class OauthController {
       console.log('OAuth callback successful, processing profile:', profile.email);
       const { accessToken, refreshToken, redirectUrl } = await this.oauth.handleGoogleProfile(profile);
 
-      // Set cookies on the client domain (3001) instead of server domain (3000)
+      // Set secure refresh token cookie only
       const isProduction = process.env.NODE_ENV === 'production';
-      const cookieOptions = {
+      const cookieDomain = process.env.COOKIE_DOMAIN;
+      
+      res.cookie('refresh_token', refreshToken, { 
         httpOnly: true,
         sameSite: 'lax' as const,
         secure: isProduction,
-        domain: isProduction ? process.env.COOKIE_DOMAIN : undefined, // Don't set domain in development
-        path: '/'
-      };
-      
-      res.cookie('access_token', accessToken, { 
-        ...cookieOptions,
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      });
-      
-      res.cookie('refresh_token', refreshToken, { 
-        ...cookieOptions,
-        maxAge: 30 * 24 * 3600 * 1000, // 30 days
+        domain: cookieDomain,
+        path: '/api/auth',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
 
-      console.log('Cookies set with options:', cookieOptions);
-      console.log('Redirecting to:', `${redirectUrl}/dashboard?auth=success&token=${encodeURIComponent(accessToken)}`);
+      // Store access token temporarily in a secure session cookie for the frontend to retrieve
+      res.cookie('oauth_access_token', accessToken, {
+        httpOnly: false, // Frontend needs to read this once
+        sameSite: 'lax' as const,
+        secure: isProduction,
+        domain: cookieDomain,
+        path: '/',
+        maxAge: 5 * 60 * 1000, // 5 minutes - just long enough for frontend to read and clear
+      });
+
+      console.log('Secure cookies set successfully');
       
-      // Also pass access token in URL as backup
-      return res.redirect(`${redirectUrl}/dashboard?auth=success&token=${encodeURIComponent(accessToken)}`);
+      // Clean redirect without tokens in URL - SECURITY FIX
+      return res.redirect(`${redirectUrl}/dashboard?auth=success`);
     } catch (error) {
       console.error('OAuth callback error:', error);
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
