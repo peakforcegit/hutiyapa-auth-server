@@ -1,11 +1,13 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
+import { EmailService } from '../email/email.service';
 import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
+import { ResetPasswordDto } from './dtos/reset-password.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes, createHash } from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -13,6 +15,7 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
   ) {}
 
   async signup(payload: SignupDto) {
@@ -35,6 +38,11 @@ export class AuthService {
       
       const tokens = await this.issueTokens(user.id, user.email);
       console.log('Tokens issued successfully');
+      
+      // Send welcome email (don't await to avoid blocking signup)
+      this.emailService.sendWelcomeEmail(user.email, user.firstName || 'User').catch(err => {
+        console.log('Welcome email failed, but signup succeeded:', err.message);
+      });
       
       return tokens;
     } catch (error) {
@@ -130,5 +138,65 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  /**
+   * Generate a password reset token and send email with reset link.
+   */
+  async requestPasswordReset(email: string) {
+    const user = await this.users.findByEmail(email);
+    // Do not reveal if user doesn't exist (security best practice)
+    if (!user) return { success: true };
+
+    // Create a random token and store a hashed version
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const expires = new Date(Date.now() + 1000 * 60 * 30); // 30 minutes
+
+    await this.prisma.users.update({
+      where: { id: user.id },
+      data: { resetPasswordToken: tokenHash, resetPasswordExpires: expires, updatedAt: new Date() },
+    });
+
+    try {
+      // Send password reset email with proper error handling
+      await this.emailService.sendPasswordResetEmail(email, rawToken);
+    } catch (error) {
+      // Log error but don't fail the request (fallback already logged in EmailService)
+      console.error('Password reset email failed:', error.message);
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Verify reset token and set new password.
+   */
+  async resetPassword(token: string, newPassword: string) {
+    if (!token) throw new BadRequestException('Invalid token');
+
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const now = new Date();
+
+    const user = await this.prisma.users.findFirst({
+      where: { resetPasswordToken: tokenHash, resetPasswordExpires: { gt: now } },
+    });
+
+    if (!user) throw new UnauthorizedException('Invalid or expired reset token');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.users.update({
+      where: { id: user.id },
+      data: {
+        password: passwordHash,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+        lastPasswordChange: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return { success: true };
   }
 }

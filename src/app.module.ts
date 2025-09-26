@@ -10,6 +10,7 @@ import { PrismaModule } from './infra/prisma/prisma.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { OauthModule } from './modules/oauth/oauth.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { OauthModule } from './modules/oauth/oauth.module';
     UsersModule,
     AuthModule,
     OauthModule,
+    EmailModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

@@ -70,36 +70,37 @@ model refresh_tokens {
 }
 
 model users {
-  id                     Int              @id @default(autoincrement())
-  email                  String           @unique
-  firstName              String
-  lastName               String
-  password               String?
-  phoneNumber            String?
-  dateOfBirth            DateTime?
-  gender                 Gender?
-  isActive               Boolean          @default(true)
-  isEmailVerified        Boolean          @default(false)
-  isPhoneVerified        Boolean          @default(false)
-  lastLoginAt            DateTime?
-  loginCount             Int              @default(0)
-  failedLoginAttempts    Int              @default(0)
-  lastFailedLoginAt      DateTime?
-  accountLockedUntil     DateTime?
-  lastPasswordChange     DateTime         @default(now())
-  resetPasswordToken     String?
-  resetPasswordExpires   DateTime?
-  emailVerificationToken String?
-  phoneVerificationToken String?
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime
-  google_id              String?          @unique @db.VarChar
-  oauth_provider         String?          @db.VarChar
-  is_oauth_user          Boolean?         @default(false)
-  oauth_profile_picture  String?          @db.VarChar
-  addresses              addresses[]
-  audit_logs             audit_logs[]
-  refresh_tokens         refresh_tokens[]
+  id                      Int                       @id @default(autoincrement())
+  email                   String                    @unique
+  firstName               String
+  lastName                String
+  password                String?
+  phoneNumber             String?
+  dateOfBirth             DateTime?
+  gender                  Gender?
+  isActive                Boolean                   @default(true)
+  isEmailVerified         Boolean                   @default(false)
+  isPhoneVerified         Boolean                   @default(false)
+  lastLoginAt             DateTime?
+  loginCount              Int                       @default(0)
+  failedLoginAttempts     Int                       @default(0)
+  lastFailedLoginAt       DateTime?
+  accountLockedUntil      DateTime?
+  lastPasswordChange      DateTime                  @default(now())
+  resetPasswordToken      String?
+  resetPasswordExpires    DateTime?
+  emailVerificationToken  String?
+  phoneVerificationToken  String?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime
+  google_id               String?                   @unique @db.VarChar
+  oauth_provider          String?                   @db.VarChar
+  is_oauth_user           Boolean?                  @default(false)
+  oauth_profile_picture   String?                   @db.VarChar
+  addresses               addresses[]
+  audit_logs              audit_logs[]
+  refresh_tokens          refresh_tokens[]
+  password_reset_requests password_reset_requests[] @relation("UserPasswordResetRequests")
 
   @@index([isActive], map: "users_active_idx")
   @@index([createdAt], map: "users_created_at_idx")
@@ -108,6 +109,18 @@ model users {
   @@index([lastLoginAt], map: "users_last_login_idx")
   @@index([accountLockedUntil], map: "users_locked_until_idx")
   @@index([resetPasswordToken], map: "users_reset_token_idx")
+}
+
+model password_reset_requests {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      users    @relation(fields: [userId], references: [id], onDelete: Cascade, name: "UserPasswordResetRequests")
+
+  @@index([expiresAt], map: "password_reset_requests_expires_idx")
+  @@index([userId], map: "password_reset_requests_user_id_idx")
 }
 
 enum AddressType {

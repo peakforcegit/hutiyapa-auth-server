@@ -2,7 +2,8 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards 
 import { AuthService } from './auth.service';
 import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
-import { ForgotPasswordDto, ResetPasswordDto } from './dtos/forgot.dto';
+import { ForgotPasswordDto } from './dtos/forgot-password.dto';
+import { ResetPasswordDto } from './dtos/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { Response, Request } from 'express';
 
@@ -42,16 +43,14 @@ export class AuthController {
     return { success: true };
   }
 
-  @Post('forgot')
-  async forgot(@Body() _dto: ForgotPasswordDto) {
-    // Implement email sending using resetPasswordToken fields in users table
-    return { success: true };
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.requestPasswordReset(dto.email);
   }
 
-  @Post('reset')
-  async reset(@Body() _dto: ResetPasswordDto) {
-    // Implement reset using resetPasswordToken and resetPasswordExpires
-    return { success: true };
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto.token, dto.password);
   }
 
   @Get('profile')
