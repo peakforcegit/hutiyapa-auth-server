@@ -30,6 +30,24 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    // Short-circuit CSRF errors with minimal body and 403 status
+    if (
+      exception &&
+      typeof exception === 'object' &&
+      ((exception as any).code === 'EBADCSRFTOKEN' ||
+        ((exception as any).name === 'ForbiddenError' &&
+          (exception as any).message?.toLowerCase?.().includes('csrf')))
+    ) {
+      const requestId =
+        (request.headers['x-request-id'] as string) ||
+        (response.getHeader('x-request-id') as string) ||
+        this.generateRequestId();
+
+      response.setHeader('x-request-id', requestId);
+      response.status(HttpStatus.FORBIDDEN).json({ error: 'Invalid CSRF token' });
+      return;
+    }
+
     const { status, message, code, details } = this.extractErrorInfo(exception);
 
     // Generate correlation ID if not present
@@ -82,6 +100,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     code: string;
     details?: any;
   } {
+    // Handle CSRF errors thrown by csurf (express middleware)
+    if (
+      exception &&
+      typeof exception === 'object' &&
+      (exception as any).code === 'EBADCSRFTOKEN'
+    ) {
+      return {
+        status: HttpStatus.FORBIDDEN,
+        message: 'Invalid CSRF token',
+        code: 'FORBIDDEN',
+      };
+    }
+
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const response = exception.getResponse();
@@ -105,9 +136,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof Error) {
       return {
         status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: exception.message,
-        code: 'INTERNAL_SERVER_ERROR',
-        details: { name: exception.name, stack: exception.stack },
+        message:
+          (exception as any)?.name === 'ForbiddenError' &&
+          (exception as any)?.message?.toLowerCase()?.includes('csrf')
+            ? 'Invalid CSRF token'
+            : exception.message,
+        code:
+          (exception as any)?.name === 'ForbiddenError' &&
+          (exception as any)?.message?.toLowerCase()?.includes('csrf')
+            ? 'FORBIDDEN'
+            : 'INTERNAL_SERVER_ERROR',
+        details:
+          process.env.NODE_ENV !== 'production'
+            ? { name: exception.name, stack: exception.stack }
+            : undefined,
       };
     }
 

@@ -39,7 +39,14 @@ async function bootstrap() {
     origin: corsOrigins.length > 0 ? corsOrigins : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-request-id'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'x-request-id',
+      'X-CSRF-Token',
+      'X-XSRF-Token',
+    ],
   });
 
   // Cookie parser
@@ -64,12 +71,39 @@ async function bootstrap() {
       },
     });
 
-    // Apply CSRF protection to specific routes only
-    app.use('/api/auth/refresh', csrfProtection);
-    app.use('/api/auth/logout', csrfProtection);
-    app.use('/api/users', csrfProtection);
-    
-    logger.log('CSRF protection enabled for sensitive routes');
+    // Apply CSRF protection globally but skip select auth endpoints
+    app.use((req: any, res: any, next: any) => {
+      const pathVals = [req.originalUrl, req.url, req.path].filter(Boolean) as string[];
+      const path = pathVals[0] || '';
+      // Match /auth/login or /auth/refresh with or without /api prefix
+      const skipRegex = /^(?:\/api)?\/auth\/(login|refresh)(?:\/|$)/;
+      const shouldSkip = skipRegex.test(path);
+      if (shouldSkip) {
+        try {
+          const headerOrigin = (req.headers['origin'] as string) || '';
+          const headerReferer = (req.headers['referer'] as string) || '';
+          const headerRefOrigin = headerReferer ? new URL(headerReferer).origin : '';
+
+          // If no origins configured, CORS is open (true). Otherwise, require match.
+          const openCors = Array.isArray(corsOrigins) && corsOrigins.length === 0;
+          const candidate = headerOrigin || headerRefOrigin;
+          const allowed = openCors || (candidate && Array.isArray(corsOrigins) && corsOrigins.includes(candidate));
+
+          if (!allowed) {
+            res.status(403).json({ error: 'Forbidden origin' });
+            return;
+          }
+        } catch (_) {
+          // If URL parsing fails, deny for safety
+          res.status(403).json({ error: 'Forbidden origin' });
+          return;
+        }
+        return next(); // Bypass CSRF for login/refresh endpoints
+      }
+      return csrfProtection(req, res, next);
+    });
+
+    logger.log('CSRF protection enabled globally (excluding /api/auth/refresh and /api/auth/login)');
   }
 
   // Global exception filter
