@@ -75,8 +75,8 @@ async function bootstrap() {
     app.use((req: any, res: any, next: any) => {
       const pathVals = [req.originalUrl, req.url, req.path].filter(Boolean) as string[];
       const path = pathVals[0] || '';
-      // Match /auth/login or /auth/refresh with or without /api prefix
-      const skipRegex = /^(?:\/api)?\/auth\/(login|refresh)(?:\/|$)/;
+      // Match /auth/login, /auth/refresh, /auth/logout with or without /api prefix
+      const skipRegex = /^(?:\/api)?\/auth\/(login|refresh|logout)(?:\/|$)/;
       const shouldSkip = skipRegex.test(path);
       if (shouldSkip) {
         try {
@@ -103,7 +103,7 @@ async function bootstrap() {
       return csrfProtection(req, res, next);
     });
 
-    logger.log('CSRF protection enabled globally (excluding /api/auth/refresh and /api/auth/login)');
+    logger.log('CSRF protection enabled globally (excluding /api/auth/{login,refresh,logout})');
   }
 
   // Global exception filter
