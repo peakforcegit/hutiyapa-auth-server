@@ -138,14 +138,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     return codeMap[status] || 'UNKNOWN_ERROR';
   }
 
-  private sanitizeErrorMessage(message: string, status: number): string {
+  private sanitizeErrorMessage(message: any, status: number): string {
     // Don't expose sensitive error details in production for 5xx errors
     if (process.env.NODE_ENV === 'production' && status >= 500) {
       return 'Internal server error occurred. Please try again later.';
     }
 
+    // Ensure message is a string
+    const messageStr = typeof message === 'string' ? message : String(message);
+
     // Sanitize common sensitive patterns
-    const sanitizedMessage = message
+    const sanitizedMessage = messageStr
       .replace(/password/gi, '[REDACTED]')
       .replace(/token/gi, '[REDACTED]')
       .replace(/secret/gi, '[REDACTED]')

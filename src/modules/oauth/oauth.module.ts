@@ -6,15 +6,17 @@ import { OauthService } from "./oauth.service";
 import { UsersModule } from "../users/users.module";
 import { AuthModule } from "../auth/auth.module";
 import { GoogleStrategy } from "../auth/strategies/google.strategy";
+import type { AppConfig } from "../../config/configuration";
 
 @Module({
   imports: [
     UsersModule, 
     AuthModule,
     JwtModule.registerAsync({
-      useFactory: () => ({
-        secret: process.env.JWT_ACCESS_SECRET,
-        signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m' },
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('app.jwtAccessSecret'),
+        signOptions: { expiresIn: config.get<string>('app.jwtAccessExpiresIn') },
       }),
     }),
   ],

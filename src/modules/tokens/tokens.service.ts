@@ -25,7 +25,7 @@ export class TokensService {
 
   constructor(
     private readonly jwt: JwtService,
-    private readonly config: ConfigService<AppConfig>,
+    private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -35,11 +35,17 @@ export class TokensService {
   async generateTokenPair(data: RefreshTokenData): Promise<TokenPair> {
     const { userId, email, deviceInfo, ipAddress } = data;
 
+    // Debug: Check what the config service returns
+    const accessSecret = this.config.get<string>('app.jwtAccessSecret');
+    const expiresIn = this.config.get<string>('app.jwtAccessExpiresIn');
+    console.log('TokensService Debug - accessSecret:', accessSecret);
+    console.log('TokensService Debug - expiresIn:', expiresIn);
+
     // Generate access token
     const accessPayload = { sub: userId, email };
     const accessToken = await this.jwt.signAsync(accessPayload, {
-      secret: process.env.JWT_ACCESS_SECRET,
-      expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+      secret: accessSecret,
+      expiresIn: expiresIn,
     });
 
     // Generate secure refresh token
@@ -241,7 +247,7 @@ export class TokensService {
   }
 
   private calculateRefreshExpiry(): Date {
-    const expiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+    const expiresIn = this.config.get('jwtRefreshExpiresIn') || '30d';
     
     // Parse expiration string (supports: 30d, 24h, 60m, 3600s)
     const match = expiresIn.match(/^(\d+)([dhms])$/);

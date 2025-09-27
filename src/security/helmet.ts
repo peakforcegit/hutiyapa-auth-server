@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 export function applyHelmetSecurity(app: INestApplication) {
   const configService = app.get(ConfigService);
   const isProduction = configService.get('NODE_ENV') === 'production';
-  const frontendUrl = configService.get('FRONTEND_URL') || configService.get('WEB_APP_URL') || 'http://localhost:3001';
+  const frontendUrl = configService.get('FRONTEND_URL') || configService.get('WEB_APP_URL');
 
   app.use(
     helmet({
@@ -17,7 +17,7 @@ export function applyHelmetSecurity(app: INestApplication) {
           styleSrc: ["'self'", "'unsafe-inline'", 'fonts.googleapis.com'],
           fontSrc: ["'self'", 'fonts.gstatic.com'],
           imgSrc: ["'self'", 'data:', '*.googleusercontent.com'],
-          connectSrc: ["'self'", frontendUrl],
+          connectSrc: frontendUrl ? ["'self'", frontendUrl] : ["'self'"],
           frameAncestors: ["'none'"],
           formAction: ["'self'"],
           baseUri: ["'self'"],

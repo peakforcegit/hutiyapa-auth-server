@@ -29,7 +29,7 @@ export class OauthController {
 
       if (!profile) {
         console.error('OAuth callback: No user profile received');
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+        const frontendUrl = process.env.FRONTEND_URL as string;
         return res.redirect(`${frontendUrl}/login?error=oauth_failed`);
       }
 
@@ -65,7 +65,7 @@ export class OauthController {
       return res.redirect(`${redirectUrl}/dashboard?auth=success`);
     } catch (error) {
       console.error('OAuth callback error:', error);
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      const frontendUrl = process.env.FRONTEND_URL as string;
       return res.redirect(`${frontendUrl}/login?error=oauth_failed`);
     }
   }

@@ -26,10 +26,10 @@ import type { AppConfig } from './config/configuration';
     }),
     LoggerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<AppConfig>) => ({
+  useFactory: (config: ConfigService) => ({
         pinoHttp: {
-          level: config.get('logLevel', 'info'),
-          transport: config.get('nodeEnv') === 'development' ? {
+          level: config.get<string>('app.logLevel', 'info'),
+          transport: config.get<string>('app.nodeEnv') === 'development' ? {
             target: 'pino-pretty',
             options: {
               colorize: true,
@@ -73,11 +73,11 @@ import type { AppConfig } from './config/configuration';
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<AppConfig>) => [
+      useFactory: (config: ConfigService) => [
         {
           name: 'short',
-          ttl: (config.get('rateLimitTtl', 60) * 1000), // Convert to milliseconds
-          limit: config.get('rateLimitMax', 100),
+          ttl: ((config.get<number>('app.rateLimitTtl', 60) as number) * 1000), // Convert to milliseconds
+          limit: config.get<number>('app.rateLimitMax', 100) as number,
         },
         {
           name: 'medium',

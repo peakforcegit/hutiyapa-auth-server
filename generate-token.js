@@ -28,7 +28,8 @@ async function generateValidToken() {
     
     console.log('✅ Token updated for user ID:', user.id);
     console.log('🔗 Use this URL:');
-    console.log(`http://localhost:3001/reset-password?token=${rawToken}`);
+    const baseUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3001';
+    console.log(`${baseUrl}/reset-password?token=${rawToken}`);
     
   } catch (error) {
     console.error('Error:', error.message);

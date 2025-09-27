@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { UsersService } from "../users/users.service";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { JwtService } from "@nestjs/jwt";
 import * as crypto from 'crypto';
+import type { AppConfig } from "../../config/configuration";
 
 @Injectable()
 export class OauthService {
@@ -10,6 +12,7 @@ export class OauthService {
     private readonly users: UsersService,
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+  private readonly config: ConfigService,
   ) {}
 
   async handleGoogleProfile(profile: {
@@ -57,8 +60,14 @@ export class OauthService {
     }
 
     // Issue tokens (reuse existing flow)
-    const access = await this.jwt.signAsync({ sub: user.id, email: user.email }, { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '15m' });
-    const refresh = await this.jwt.signAsync({ sub: user.id, email: user.email, typ: 'refresh' }, { secret: process.env.JWT_REFRESH_SECRET, expiresIn: '30d' });
+    const access = await this.jwt.signAsync({ sub: user.id, email: user.email }, { 
+      secret: this.config.get<string>('app.jwtAccessSecret'), 
+      expiresIn: this.config.get<string>('app.jwtAccessExpiresIn') 
+    });
+    const refresh = await this.jwt.signAsync({ sub: user.id, email: user.email, typ: 'refresh' }, { 
+      secret: this.config.get<string>('app.jwtRefreshSecret'), 
+      expiresIn: this.config.get<string>('app.jwtRefreshExpiresIn') 
+    });
     const decoded: any = this.jwt.decode(refresh);
     const expiresAt = new Date((decoded as any).exp * 1000);
 
@@ -75,7 +84,7 @@ export class OauthService {
       },
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
+  const frontendUrl = this.config.get<string>('app.frontendUrl') || (this.config.get<string>('app.webAppUrl') as string);
     return { accessToken: access, refreshToken: refresh, redirectUrl: frontendUrl };
   }
 }

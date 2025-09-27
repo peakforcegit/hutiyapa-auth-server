@@ -7,8 +7,14 @@ import type { AppConfig } from '../../../config/configuration';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(private config: ConfigService<AppConfig>) {
-    const secret = process.env.JWT_ACCESS_SECRET;
+  constructor(private config: ConfigService) {
+    // Try direct env access first to debug
+    const secretFromEnv = process.env.JWT_ACCESS_SECRET;
+  const secret = (config.get('app.jwtAccessSecret') as string) || secretFromEnv;
+    
+    console.log('JWT Debug - secret from env:', secretFromEnv);
+  console.log('JWT Debug - secret from config:', config.get('app.jwtAccessSecret'));
+    console.log('JWT Debug - final secret:', secret);
     
     if (!secret) {
       throw new Error('JWT_ACCESS_SECRET is not configured');

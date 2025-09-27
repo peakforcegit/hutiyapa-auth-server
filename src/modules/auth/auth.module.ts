@@ -13,12 +13,13 @@ import type { AppConfig } from '../../config/configuration';
 @Module({
   imports: [
     PassportModule,
-    JwtModule.registerAsync({
-      useFactory: () => ({
-        secret: process.env.JWT_ACCESS_SECRET,
-        signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m' },
-      }),
-    }),
+        JwtModule.registerAsync({
+          inject: [ConfigService],
+          useFactory: (config: ConfigService) => ({
+            secret: config.get<string>('app.jwtAccessSecret'),
+            signOptions: { expiresIn: config.get<string>('app.jwtAccessExpiresIn') },
+          }),
+        }),
     UsersModule,
     EmailModule,
     TokensModule,

@@ -102,6 +102,10 @@ export const envValidationSchema = Joi.object({
   GOOGLE_CLIENT_SECRET: Joi.string()
     .required()
     .description('Google OAuth client secret'),
+  GOOGLE_CALLBACK_URL: Joi.string()
+    .uri()
+    .required()
+    .description('Google OAuth callback URL (must match in Google Console)'),
 
   // Optional Monitoring
   SENTRY_DSN: Joi.string()

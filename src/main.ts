@@ -17,16 +17,16 @@ async function bootstrap() {
   // Use the configured pino logger
   app.useLogger(app.get(Logger));
   
-  const config = app.get<ConfigService<AppConfig>>(ConfigService);
+  const config = app.get<ConfigService>(ConfigService);
   const logger = app.get(Logger);
   
   // Get configuration values
-  const port = config.get('port', 3000);
-  const corsOrigins = config.get('corsOrigins', []);
-  const cookieSecret = config.get('cookieSecret');
-  const enableHelmet = config.get('enableHelmet', true);
-  const enableCsrf = config.get('enableCsrf', true);
-  const isProduction = config.get('nodeEnv') === 'production';
+  const port = config.get<number>('app.port', 3000) as number;
+  const corsOrigins = (config.get<string[]>('app.corsOrigins', []) as string[]) || [];
+  const cookieSecret = config.get<string>('app.cookieSecret');
+  const enableHelmet = (config.get<boolean>('app.enableHelmet', true) as boolean);
+  const enableCsrf = (config.get<boolean>('app.enableCsrf', true) as boolean);
+  const isProduction = config.get<string>('app.nodeEnv') === 'production';
 
   // Apply security middleware
   if (enableHelmet) {
@@ -36,7 +36,7 @@ async function bootstrap() {
 
   // Configure CORS
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : 'http://localhost:3001',
+    origin: corsOrigins.length > 0 ? corsOrigins : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-request-id'],
@@ -86,8 +86,8 @@ async function bootstrap() {
 
   await app.listen(port);
   
-  logger.log(`🚀 Application is running on: http://localhost:${port}/api`);
-  logger.log(`🌍 Environment: ${config.get('nodeEnv')}`);
+  logger.log(`🚀 Application is running on port ${port} with API prefix /api`);
+  logger.log(`🌍 Environment: ${config.get<string>('app.nodeEnv')}`);
   logger.log(`🛡️  Security: Helmet=${enableHelmet}, CSRF=${enableCsrf}`);
 }
 

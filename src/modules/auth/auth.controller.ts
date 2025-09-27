@@ -16,7 +16,7 @@ export class AuthController {
 
   constructor(
     private readonly auth: AuthService,
-    private readonly config: ConfigService<AppConfig>,
+    private readonly config: ConfigService,
   ) {}
 
   private getClientIp(req: Request): string {
@@ -28,8 +28,8 @@ export class AuthController {
   }
 
   private setSecureRefreshCookie(res: Response, refreshToken: string): void {
-    const isProduction = this.config.get('nodeEnv') === 'production';
-    const cookieDomain = this.config.get('cookieDomain');
+  const isProduction = this.config.get<string>('app.nodeEnv') === 'production';
+  const cookieDomain = this.config.get<string>('app.cookieDomain');
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
@@ -42,7 +42,7 @@ export class AuthController {
   }
 
   private clearRefreshCookie(res: Response): void {
-    const cookieDomain = this.config.get('cookieDomain');
+  const cookieDomain = this.config.get<string>('app.cookieDomain');
     
     res.clearCookie('refresh_token', {
       httpOnly: true,

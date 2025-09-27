@@ -18,7 +18,8 @@ async function testDirectReset() {
 
   // Generate reset token
   const rawToken = randomBytes(32).toString('hex');
-  const resetLink = `http://localhost:3001/reset-password?token=${rawToken}`;
+  const base = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3001';
+  const resetLink = `${base}/reset-password?token=${rawToken}`;
   
   console.log('📧 Sending to: sd.vikasvaibhav@gmail.com');
   console.log('🔗 Reset link: ' + resetLink);
