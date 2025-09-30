@@ -88,8 +88,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.log('Request completed with error', logContext);
     }
 
-    // Set correlation header
-    response.setHeader('x-request-id', requestId);
+    // Set correlation header if possible
+    if (!response.headersSent) {
+      response.setHeader('x-request-id', requestId);
+    }
+
+    // Avoid writing to the response if it has already been sent by a controller
+    if (response.headersSent) {
+      return;
+    }
 
     response.status(status).json(errorResponse);
   }

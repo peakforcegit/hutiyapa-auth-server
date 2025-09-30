@@ -1,21 +1,26 @@
-node_modules
-dist
-.nyc_output
-coverage
-.DS_Store
-.idea
-.vscode
+# Node/Nest basics
+node_modules/
+dist/
+coverage/
+.nyc_output/
+.eslintcache
 
-# Logs
-logs
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and debug
 *.log
 npm-debug.log*
-yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# OS
-Thumbs.db
+# OS/Editor
+.DS_Store
+.idea/
+.vscode/
 
-/generated/prisma
-env.txt
-.env
+# Prisma
+.prisma/
+generated/
