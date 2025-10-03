@@ -1,8 +1,8 @@
 # Node/Nest basics
-node_modules/
-dist/
-coverage/
-.nyc_output/
+node_modules
+dist
+coverage
+.nyc_output
 .eslintcache
 
 # Env and secrets
@@ -18,9 +18,9 @@ pnpm-debug.log*
 
 # OS/Editor
 .DS_Store
-.idea/
-.vscode/
+.idea
+.vscode
 
 # Prisma
-.prisma/
-generated/
+.prisma
+generated
